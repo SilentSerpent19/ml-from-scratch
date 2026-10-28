@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCA from scratch — 167 countries in 2D</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.26.0/plotly.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0c0f;
+    --bg2: #13151a;
+    --bg3: #1c1f27;
+    --border: rgba(255,255,255,0.07);
+    --text: #e8e6e0;
+    --muted: #7a7870;
+    --accent: #c8a96e;
+    --accent2: #6e9ec8;
+    --accent3: #9ec87a;
+    --red: #c87a7a;
+    --font-display: 'DM Serif Display', Georgia, serif;
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'DM Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
+
+  nav { position: sticky; top: 0; z-index: 100; background: var(--bg); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0; padding: 0 2rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  nav button { background: none; border: none; color: var(--muted); font-family: var(--font-mono); font-size: 12px; padding: 1rem 1.2rem; cursor: pointer; white-space: nowrap; border-bottom: 2px solid transparent; transition: all 0.2s; }
+  nav button:hover { color: var(--text); }
+  nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .nav-title { font-family: var(--font-display); font-size: 15px; color: var(--accent); margin-right: 2rem; white-space: nowrap; padding: 1rem 0; }
+
+  section { display: none; padding: 3rem 2rem; max-width: 1100px; margin: 0 auto; }
+  section.active { display: block; }
+
+  .hero { border-bottom: 1px solid var(--border); padding: 4rem 2rem 3rem; text-align: center; background: var(--bg); }
+  .hero h1 { font-family: var(--font-display); font-size: clamp(2rem, 5vw, 3.5rem); color: var(--text); margin-bottom: 0.5rem; }
+  .hero h1 em { color: var(--accent); font-style: italic; }
+  .hero p { color: var(--muted); max-width: 560px; margin: 0.75rem auto 0; font-size: 14px; }
+  .hero .tags { display: flex; gap: 8px; justify-content: center; margin-top: 1.5rem; flex-wrap: wrap; }
+  .tag { font-family: var(--font-mono); font-size: 11px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 3px; color: var(--muted); }
+  .tag.gold { border-color: var(--accent); color: var(--accent); }
+
+  .sec-header { margin-bottom: 2rem; }
+  .sec-num { font-family: var(--font-mono); font-size: 11px; color: var(--accent); letter-spacing: 2px; margin-bottom: 6px; }
+  .sec-title { font-family: var(--font-display); font-size: 2rem; color: var(--text); }
+  .sec-sub { color: var(--muted); font-size: 14px; margin-top: 6px; max-width: 700px; }
+
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .card-title { font-family: var(--font-mono); font-size: 12px; color: var(--accent); margin-bottom: 1rem; letter-spacing: 1px; }
+
+  .math-block { background: var(--bg3); border-left: 3px solid var(--accent); padding: 1rem 1.5rem; border-radius: 0 4px 4px 0; font-family: var(--font-mono); font-size: 13px; margin: 1rem 0; color: var(--text); }
+  .math-block span { color: var(--accent); }
+  .math-block .note { color: var(--muted); font-size: 11px; margin-top: 6px; display: block; }
+
+  .warn-block { background: rgba(200,169,110,0.06); border-left: 3px solid var(--accent); padding: 0.8rem 1.2rem; border-radius: 0 4px 4px 0; font-size: 13px; margin: 1rem 0; color: var(--muted); }
+  .warn-block strong { color: var(--accent); }
+
+  .insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+  .insight { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; }
+  .insight-val { font-family: var(--font-display); font-size: 2rem; color: var(--accent); }
+  .insight-label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .plot-wrap { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin: 1.5rem 0; }
+  .plot-wrap .plotly-graph-div { width: 100% !important; }
+
+  .controls { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
+  .ctrl-label { font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+  select { background: var(--bg3); border: 1px solid var(--border); color: var(--text); font-family: var(--font-mono); font-size: 12px; padding: 6px 10px; border-radius: 4px; cursor: pointer; }
+  select:hover { border-color: var(--accent); }
+  button.ctrl-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--muted); font-family: var(--font-mono); font-size: 12px; padding: 6px 14px; border-radius: 4px; cursor: pointer; transition: all 0.2s; }
+  button.ctrl-btn:hover, button.ctrl-btn.on { border-color: var(--accent); color: var(--accent); }
+  input[type=range] { accent-color: var(--accent); }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  @media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-family: var(--font-mono); }
+  th { text-align: left; padding: 8px 12px; color: var(--muted); font-size: 11px; letter-spacing: 1px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  tr:hover td { background: var(--bg3); }
+  .bar-cell { display: flex; align-items: center; gap: 8px; }
+  .bar-fill { height: 6px; border-radius: 3px; background: var(--accent); transition: width 0.4s; }
+  .bar-fill.blue { background: var(--accent2); }
+  .bar-fill.green { background: var(--accent3); }
+  .bar-fill.red { background: var(--red); }
+
+  .annotation { font-size: 13px; color: var(--muted); padding: 0.75rem 1rem; background: var(--bg3); border-radius: 4px; border-left: 2px solid var(--accent2); margin: 1rem 0; }
+  .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .live { font-family: var(--font-mono); font-size: 11px; color: var(--muted); padding: 0.6rem 1rem; background: var(--bg3); border-radius: 4px; margin: 1rem 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  .live b { color: var(--accent3); font-weight: 500; }
+  footer { border-top: 1px solid var(--border); padding: 2rem 1rem; text-align: center; color: var(--muted); font-size: 12px; }
+  footer a { color: var(--accent); text-decoration: none; }
+  @media (max-width: 600px) {
+    section { padding: 2rem 1rem; }
+    .hero { padding: 2.5rem 1rem 2rem; }
+    nav { padding: 0 1rem; }
+    nav button { padding: 0.8rem 0.8rem; font-size: 11px; }
+    .nav-title { margin-right: 1rem; }
+    .insight-val { font-size: 1.5rem; }
+    .math-block { font-size: 12px; padding: 0.8rem 1rem; overflow-x: auto; }
+    table { font-size: 12px; }
+    th, td { padding: 6px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Visualization of Countries in 2D<br>using <em>Principal Component Analysis</em></h1>
+  <p>n = 167 countries, p = 9 socio-economic indicators · every number on this page is computed in your browser when it loads: no library, no precomputed results</p>
+  <div class="tags">
+    <span class="tag gold">Computed live — Jacobi eigendecomposition in plain JavaScript</span>
+    <span class="tag">ℝ⁹ → ℝ²</span>
+    <span class="tag">Eigen-analysis</span>
+    <span class="tag">Orthogonal Projection</span>
+    <span class="tag"><span class="L" data-f="cum2pct">—</span>% variance retained</span>
+  </div>
+</div>
+
+<nav>
+  <span class="nav-title">PCA Explorer</span>
+  <button class="active" onclick="show('s1',this)">01 · Raw Data</button>
+  <button onclick="show('s2',this)">02 · Standardization</button>
+  <button onclick="show('s3',this)">03 · Correlation Matrix</button>
+  <button onclick="show('s4',this)">04 · Eigenspectrum</button>
+  <button onclick="show('s5',this)">05 · PCA 2D Projection</button>
+  <button onclick="show('s6',this)">06 · PCA 3D</button>
+  <button onclick="show('s7',this)">07 · Loadings</button>
+</nav>
+
+<!-- SECTION 1: RAW DATA -->
+<section id="s1" class="active">
+  <div class="sec-header">
+    <div class="sec-num">01 · THE DATASET</div>
+    <h2 class="sec-title">Data in ℝ⁹ — before anything</h2>
+    <p class="sec-sub">167 countries, each a point in 9-dimensional Euclidean space. Choose two variables to see their relationship and scale differences. The raw table is the only thing embedded in this page; everything else is derived from it at load time.</p>
+  </div>
+
+  <div class="insights">
+    <div class="insight"><div class="insight-val"><span class="L" data-f="n">—</span></div><div class="insight-label">countries (rows of X)</div></div>
+    <div class="insight"><div class="insight-val"><span class="L" data-f="p">—</span></div><div class="insight-label">indicators (columns of X)</div></div>
+    <div class="insight"><div class="insight-val"><span class="L" data-f="missing">—</span></div><div class="insight-label">missing values</div></div>
+    <div class="insight"><div class="insight-val">ℝ⁹</div><div class="insight-label">ambient space before PCA</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">VARIABLE REFERENCE</div>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Variable</th><th>Meaning</th><th>Units</th><th>mean</th><th>σ̂ (sample)</th></tr></thead>
+      <tbody id="var_table"></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="controls">
+    <span class="ctrl-label">X axis:</span>
+    <select id="raw_x">
+      <option value="income">income (USD)</option>
+      <option value="gdpp" selected>gdpp (USD)</option>
+      <option value="child_mort">child_mort</option>
+      <option value="life_expec">life_expec</option>
+      <option value="total_fer">total_fer</option>
+      <option value="exports">exports</option>
+      <option value="imports">imports</option>
+      <option value="health">health</option>
+      <option value="inflation">inflation</option>
+    </select>
+    <span class="ctrl-label">Y axis:</span>
+    <select id="raw_y">
+      <option value="income" selected>income (USD)</option>
+      <option value="gdpp">gdpp (USD)</option>
+      <option value="child_mort">child_mort</option>
+      <option value="life_expec">life_expec</option>
+      <option value="total_fer">total_fer</option>
+      <option value="exports">exports</option>
+      <option value="imports">imports</option>
+      <option value="health">health</option>
+      <option value="inflation">inflation</option>
+    </select>
+    <button class="ctrl-btn on" id="btn_labels" onclick="toggleLabels()">labels ON</button>
+  </div>
+  <div id="plot_raw" class="plot-wrap"></div>
+  <div class="annotation" id="raw_annotation"></div>
+</section>
+
+<!-- SECTION 2: STANDARDIZATION -->
+<section id="s2">
+  <div class="sec-header">
+    <div class="sec-num">02 · STANDARDIZATION</div>
+    <h2 class="sec-title">Why unit-free coordinates matter</h2>
+    <p class="sec-sub">Without rescaling, Euclidean distance is dominated by high-variance variables (income, gdpp). Standardization centers and rescales each column to unit <em>marginal</em> variance — the cloud remains anisotropic in the joint sense.</p>
+  </div>
+
+  <div class="math-block">
+    X̃ᵢⱼ = ( Xᵢⱼ − <span>μ̂ⱼ</span> ) / <span>ŝⱼ</span>
+    &nbsp;&nbsp;→&nbsp;&nbsp; mean = 0, variance = 1 for every column
+    <span class="note">μ̂ⱼ = sample mean, ŝⱼ = sample std (ddof=1). After standardization, Cov(X̃) = Corr(X) — the correlation matrix.</span>
+  </div>
+
+  <div class="warn-block">
+    <strong>Important:</strong> Standardization equalizes <em>marginal</em> variances, but the joint data cloud remains anisotropic — off-diagonal correlations persist. The total variance becomes exactly p = 9 (= trace of the correlation matrix), but PCA still finds strongly elongated directions. This is precisely why λ₁ = <span class="L" data-f="lam1_2">—</span> ≫ 1.
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="card">
+        <div class="card-title">BEFORE STANDARDIZATION — σ̂ⱼ (log scale)</div>
+        <div id="plot_before_std"></div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="card-title">AFTER STANDARDIZATION — σ̂ⱼ recomputed from X̃</div>
+        <div id="plot_after_std"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">SCALE COMPARISON — σ̂ relative to largest</div>
+    <div class="table-wrap">
+    <table>
+      <thead><tr><th>Variable</th><th>σ̂ (raw)</th><th>Relative scale</th></tr></thead>
+      <tbody id="scale_table"></tbody>
+    </table>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 3: CORRELATION MATRIX -->
+<section id="s3">
+  <div class="sec-header">
+    <div class="sec-num">03 · CORRELATION MATRIX</div>
+    <h2 class="sec-title">The shape of the standardized data cloud</h2>
+    <p class="sec-sub">After standardization, Cov(X̃) = Corr(X) — the correlation matrix R. This is the matrix we decompose in PCA. Each off-diagonal entry rⱼₖ = Pearson correlation; each diagonal entry = 1; trace(R) = p = 9.</p>
+  </div>
+
+  <div class="math-block">
+    R = (n−1)⁻¹ X̃ᵀX̃ &nbsp;·&nbsp; <span>R ∈ ℝ⁹ˣ⁹</span> &nbsp;·&nbsp; Symmetric, PSD &nbsp;·&nbsp; diag(R) = 1 &nbsp;·&nbsp; trace(R) = <span class="L" data-f="traceR">—</span>
+    <span class="note">Note: R is the covariance matrix of standardized data, and simultaneously the correlation matrix of raw data. These are the same object — distinct from the raw covariance matrix Σ = (n−1)⁻¹ XᵀX, which we do not use here.</span>
+  </div>
+
+  <div class="card">
+    <div class="card-title">CORRELATION HEATMAP — R = Corr(X) = Cov(X̃)</div>
+    <div id="plot_corr" class="plot-wrap"></div>
+  </div>
+
+  <div class="insights" id="corr_insights"></div>
+
+  <div class="annotation">
+    Geometric reading: rⱼₖ = cos(θⱼₖ) where θⱼₖ is the angle between the <em>mean-centered, unit-norm</em> column vectors x̃ⱼ/‖x̃ⱼ‖ and x̃ₖ/‖x̃ₖ‖ in ℝ¹⁶⁷. This is <em>not</em> the angle between standardized columns, which differ by a factor of √(n−1) from unit-norm vectors.
+  </div>
+</section>
+
+<!-- SECTION 4: EIGENSPECTRUM -->
+<section id="s4">
+  <div class="sec-header">
+    <div class="sec-num">04 · EIGEN-ANALYSIS</div>
+    <h2 class="sec-title">The spectrum of R</h2>
+    <p class="sec-sub">R = VΛVᵀ. Eigenvalues λₖ are the variances of the data along the principal axes; their sum equals p = 9. All eigenvectors are unit-norm and mutually orthogonal: VᵀV = VVᵀ = I₉. The decomposition is computed here with cyclic Jacobi rotations: repeatedly zero the largest off-diagonal entries with 2×2 rotations until R is diagonal.</p>
+  </div>
+
+  <div class="math-block">
+    R = <span>V</span> Λ <span>V</span>ᵀ &nbsp;·&nbsp; VᵀV = I₉ &nbsp;·&nbsp; Λ = diag(λ₁ ≥ λ₂ ≥ … ≥ λ₉ > 0) &nbsp;·&nbsp; Σλₖ = 9
+    <span class="note">Checked at load time on the computed V and Λ (see the verification line below).</span>
+  </div>
+
+  <div class="live" id="live_check"></div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">EIGENVALUE TABLE</div>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>k</th><th>λₖ</th><th>% var.</th><th>Cumulative</th></tr></thead>
+        <tbody id="eigen_table"></tbody>
+      </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">COMPONENT SELECTION</div>
+      <div style="margin-bottom:1rem;">
+        <label class="ctrl-label">Threshold: <span id="thresh_val">80</span>%</label><br>
+        <input type="range" min="50" max="99" value="80" id="thresh_slider" oninput="updateThresh()" style="width:100%;margin-top:8px;">
+      </div>
+      <div id="thresh_result" style="font-family:var(--font-mono);font-size:13px;color:var(--accent);"></div>
+      <div style="margin-top:1rem;font-size:12px;color:var(--muted);" id="kaiser_note"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">SCREE PLOT — share of variance per component + cumulative</div>
+    <div id="plot_scree" class="plot-wrap"></div>
+  </div>
+</section>
+
+<!-- SECTION 5: 2D PROJECTION -->
+<section id="s5">
+  <div class="sec-header">
+    <div class="sec-num">05 · 2D PCA PROJECTION</div>
+    <h2 class="sec-title">167 countries on the principal plane</h2>
+    <p class="sec-sub">Z₂ = X̃ V₂ · Orthogonal projection onto span(v₁, v₂). V₂ is 9×2, not square — this is a projection, not a rotation. <span class="L" data-f="cum2pct">—</span>% of total variance retained.</p>
+  </div>
+
+  <div class="math-block">
+    Z₂ = X̃ <span>V₂</span> &nbsp;·&nbsp; V₂ = [v₁ | v₂] ∈ ℝ⁹ˣ² &nbsp;·&nbsp; V₂ᵀV₂ = I₂ &nbsp;·&nbsp; Variance retained: <span>(<span class="L" data-f="lam1_3">—</span> + <span class="L" data-f="lam2_3">—</span>) / 9 = <span class="L" data-f="cum2pct">—</span>%</span>
+    <span class="note">Note: V₂V₂ᵀ ≠ I₉ — the full 9D metric is not preserved. Distances between projected points approximate, but do not equal, original ℝ⁹ distances.</span>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn on" id="btn_country_labels" onclick="toggleCountryLabels()">country labels ON</button>
+    <button class="ctrl-btn" id="btn_color_gdp" onclick="setColorMode('gdp')">color by gdp</button>
+    <button class="ctrl-btn on" id="btn_color_region" onclick="setColorMode('region')">color by region</button>
+  </div>
+  <div id="plot_pca2d" class="plot-wrap"></div>
+
+  <div class="annotation" id="pc_annotation"></div>
+</section>
+
+<!-- SECTION 6: 3D PCA -->
+<section id="s6">
+  <div class="sec-header">
+    <div class="sec-num">06 · 3D PCA VISUALIZATION</div>
+    <h2 class="sec-title">Three principal components</h2>
+    <p class="sec-sub" id="pc3_sub"></p>
+  </div>
+
+  <div class="insights">
+    <div class="insight"><div class="insight-val"><span class="L" data-f="pct1">—</span>%</div><div class="insight-label">PC1 — Development axis</div></div>
+    <div class="insight"><div class="insight-val"><span class="L" data-f="pct2">—</span>%</div><div class="insight-label">PC2 — Trade-openness</div></div>
+    <div class="insight"><div class="insight-val"><span class="L" data-f="pct3">—</span>%</div><div class="insight-label" id="pc3_label">PC3</div></div>
+    <div class="insight"><div class="insight-val"><span class="L" data-f="cum3pct">—</span>%</div><div class="insight-label">Cumulative (3 PCs)</div></div>
+  </div>
+
+  <div id="plot_pca3d" class="plot-wrap"></div>
+  <div class="annotation">Rotate · Zoom · Hover — scores are Z = X̃V₃. The elongation along PC1 reflects λ₁ = <span class="L" data-f="lam1_2">—</span>, the strongest variance direction.</div>
+</section>
+
+<!-- SECTION 7: LOADINGS -->
+<section id="s7">
+  <div class="sec-header">
+    <div class="sec-num">07 · VARIABLE LOADINGS</div>
+    <h2 class="sec-title">Eigenvector components — which variables drive each PC?</h2>
+    <p class="sec-sub">Loadings are the components of unit eigenvectors vₖ. Each loading vᵢₖ is the cosine of the angle between variable i and PC axis k. All loading vectors satisfy ‖vₖ‖ = 1 and vⱼᵀvₖ = 0 (j ≠ k).</p>
+  </div>
+
+  <div class="warn-block">
+    <strong>Sign note:</strong> Eigenvector signs are arbitrary — only the direction (axis) is determined, not the orientation. Here, signs are fixed by convention: the variable with the largest absolute loading on each PC is set positive.
+  </div>
+
+  <div class="controls">
+    <span class="ctrl-label">Component:</span>
+    <select id="loading_pc" onchange="renderLoadings()">
+      <option value="0">PC1</option>
+      <option value="1">PC2</option>
+      <option value="2">PC3</option>
+    </select>
+  </div>
+  <div id="plot_loadings" class="plot-wrap"></div>
+
+  <div class="two-col" style="margin-top:1.5rem;">
+    <div class="card">
+      <div class="card-title">PC1 LOADINGS — Development axis</div>
+      <div class="table-wrap"><table><thead><tr><th>Variable</th><th>Loading vᵢ₁</th><th>Direction</th></tr></thead>
+      <tbody id="load1_table"></tbody></table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">PC2 LOADINGS — Trade-openness</div>
+      <div class="table-wrap"><table><thead><tr><th>Variable</th><th>Loading vᵢ₂</th><th>Direction</th></tr></thead>
+      <tbody id="load2_table"></tbody></table></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Data: <a href="https://www.kaggle.com/datasets/rohan0301/unsupervised-learning-on-country-data" target="_blank" rel="noopener">Unsupervised Learning on Country Data</a> (Kaggle, 167 countries × 9 indicators). The region column was added for colouring only and is not used in the PCA.<br>
+  All statistics on this page are computed from that table in the browser; nothing is precomputed. Plotly is used for drawing only.
+</footer>
+
+<script>
+/* ============================================================
+   RAW INPUT DATA — the only thing stored in this file.
+   Columns of d follow VARS. Nothing below this block is precomputed.
+   ============================================================ */
+const VARS = ['child_mort','exports','health','imports','income','inflation','life_expec','total_fer','gdpp'];
+const VAR_META = {
+  child_mort:['Under-5 mortality','per 1 000'],
+  exports:['Exports of goods & services','% of GDP'],
+  health:['Health spending','% of GDP'],
+  imports:['Imports of goods & services','% of GDP'],
+  income:['Net income per person','USD'],
+  inflation:['Annual GDP deflator growth','%'],
+  life_expec:['Life expectancy at birth','years'],
+  total_fer:['Total fertility rate','children/woman'],
+  gdpp:['GDP per capita','USD'],
+};
+
+const COUNTRIES = [
+  {n:"Afghanistan", r:"Asia", d:[90.2,10,7.58,44.9,1610,9.44,56.2,5.82,553]},
+  {n:"Albania", r:"Europe", d:[16.6,28,6.55,48.6,9930,4.49,76.3,1.65,4090]},
+  {n:"Algeria", r:"Africa", d:[27.3,38.4,4.17,31.4,12900,16.1,76.5,2.89,4460]},
+  {n:"Angola", r:"Africa", d:[119,62.3,2.85,42.9,5900,22.4,60.1,6.16,3530]},
+  {n:"Antigua and Barbuda", r:"Americas", d:[10.3,45.5,6.03,58.9,19100,1.44,76.8,2.13,12200]},
+  {n:"Argentina", r:"Americas", d:[14.5,18.9,8.1,16,18700,20.9,75.8,2.37,10300]},
+  {n:"Armenia", r:"Asia", d:[18.1,20.8,4.4,45.3,6700,7.77,73.3,1.69,3220]},
+  {n:"Australia", r:"Oceania", d:[4.8,19.8,8.73,20.9,41400,1.16,82,1.93,51900]},
+  {n:"Austria", r:"Europe", d:[4.3,51.3,11,47.8,43200,0.87,80.5,1.44,46900]},
+  {n:"Azerbaijan", r:"Asia", d:[39.2,54.3,5.88,20.7,16000,13.8,69.1,1.92,5840]},
+  {n:"Bahamas", r:"Americas", d:[13.8,35,7.89,43.7,22900,-0.39,73.8,1.86,28000]},
+  {n:"Bahrain", r:"Asia", d:[8.6,69.5,4.97,50.9,41100,7.44,76,2.16,20700]},
+  {n:"Bangladesh", r:"Asia", d:[49.4,16,3.52,21.8,2440,7.14,70.4,2.33,758]},
+  {n:"Barbados", r:"Americas", d:[14.2,39.5,7.97,48.7,15300,0.32,76.7,1.78,16000]},
+  {n:"Belarus", r:"Europe", d:[5.5,51.4,5.61,64.5,16200,15.1,70.4,1.49,6030]},
+  {n:"Belgium", r:"Europe", d:[4.5,76.4,10.7,74.7,41100,1.88,80,1.86,44400]},
+  {n:"Belize", r:"Americas", d:[18.8,58.2,5.2,57.5,7880,1.14,71.4,2.71,4340]},
+  {n:"Benin", r:"Africa", d:[111,23.8,4.1,37.2,1820,0.89,61.8,5.36,758]},
+  {n:"Bhutan", r:"Asia", d:[42.7,42.5,5.2,70.7,6420,5.99,72.1,2.38,2180]},
+  {n:"Bolivia", r:"Americas", d:[46.6,41.2,4.84,34.3,5410,8.78,71.6,3.2,1980]},
+  {n:"Bosnia and Herzegovina", r:"Europe", d:[6.9,29.7,11.1,51.3,9720,1.4,76.8,1.31,4610]},
+  {n:"Botswana", r:"Africa", d:[52.5,43.6,8.3,51.3,13300,8.92,57.1,2.88,6350]},
+  {n:"Brazil", r:"Americas", d:[19.8,10.7,9.01,11.8,14500,8.41,74.2,1.8,11200]},
+  {n:"Brunei", r:"Asia", d:[10.5,67.4,2.84,28,80600,16.7,77.1,1.84,35300]},
+  {n:"Bulgaria", r:"Europe", d:[10.8,50.2,6.87,53,15300,1.11,73.9,1.57,6840]},
+  {n:"Burkina Faso", r:"Africa", d:[116,19.2,6.74,29.6,1430,6.81,57.9,5.87,575]},
+  {n:"Burundi", r:"Africa", d:[93.6,8.92,11.6,39.2,764,12.3,57.7,6.26,231]},
+  {n:"Cambodia", r:"Asia", d:[44.4,54.1,5.68,59.5,2520,3.12,66.1,2.88,786]},
+  {n:"Cameroon", r:"Africa", d:[108,22.2,5.13,27,2660,1.91,57.3,5.11,1310]},
+  {n:"Canada", r:"Americas", d:[5.6,29.1,11.3,31,40700,2.87,81.3,1.63,47400]},
+  {n:"Cape Verde", r:"Africa", d:[26.5,32.7,4.09,61.8,5830,0.51,72.5,2.67,3310]},
+  {n:"Central African Republic", r:"Africa", d:[149,11.8,3.98,26.5,888,2.01,47.5,5.21,446]},
+  {n:"Chad", r:"Africa", d:[150,36.8,4.53,43.5,1930,6.39,56.5,6.59,897]},
+  {n:"Chile", r:"Americas", d:[8.7,37.7,7.96,31.3,19400,8.96,79.1,1.88,12900]},
+  {n:"China", r:"Asia", d:[15.7,26.3,5.07,22.6,9530,6.94,74.6,1.59,4560]},
+  {n:"Colombia", r:"Americas", d:[18.6,15.9,7.59,17.8,10900,3.86,76.4,2.01,6250]},
+  {n:"Comoros", r:"Africa", d:[88.2,16.5,4.51,51.7,1410,3.87,65.9,4.75,769]},
+  {n:"Congo, Dem. Rep.", r:"Africa", d:[116,41.1,7.91,49.6,609,20.8,57.5,6.54,334]},
+  {n:"Congo, Rep.", r:"Africa", d:[63.9,85.1,2.46,54.7,5190,20.7,60.4,4.95,2740]},
+  {n:"Costa Rica", r:"Americas", d:[10.2,33.2,10.9,35,13000,6.57,80.4,1.92,8200]},
+  {n:"Cote d'Ivoire", r:"Africa", d:[111,50.6,5.3,43.3,2690,5.39,56.3,5.27,1220]},
+  {n:"Croatia", r:"Europe", d:[5.5,37.6,7.76,38.1,20100,0.82,76.3,1.55,13500]},
+  {n:"Cyprus", r:"Europe", d:[3.6,50.2,5.97,57.5,33900,2.01,79.9,1.42,30800]},
+  {n:"Czech Republic", r:"Europe", d:[3.4,66,7.88,62.9,28300,-1.43,77.5,1.51,19800]},
+  {n:"Denmark", r:"Europe", d:[4.1,50.5,11.4,43.6,44000,3.22,79.5,1.87,58000]},
+  {n:"Dominican Republic", r:"Americas", d:[34.4,22.7,6.22,33.3,11100,5.44,74.6,2.6,5450]},
+  {n:"Ecuador", r:"Americas", d:[25.1,27.9,8.06,32.4,9350,7.47,76.7,2.66,4660]},
+  {n:"Egypt", r:"Africa", d:[29.1,21.3,4.66,26.6,9860,10.1,70.5,3.19,2600]},
+  {n:"El Salvador", r:"Americas", d:[19.2,26.9,6.91,46.6,7300,2.65,74.1,2.27,2990]},
+  {n:"Equatorial Guinea", r:"Africa", d:[111,85.8,4.48,58.9,33700,24.9,60.9,5.21,17100]},
+  {n:"Eritrea", r:"Africa", d:[55.2,4.79,2.66,23.3,1420,11.6,61.7,4.61,482]},
+  {n:"Estonia", r:"Europe", d:[4.5,75.1,6.03,68.7,22700,1.74,76,1.72,14600]},
+  {n:"Fiji", r:"Oceania", d:[24.1,57.8,4.86,63.9,7350,4.23,65.3,2.67,3650]},
+  {n:"Finland", r:"Europe", d:[3,38.7,8.95,37.4,39800,0.35,80,1.87,46200]},
+  {n:"France", r:"Europe", d:[4.2,26.8,11.9,28.1,36900,1.05,81.4,2.03,40600]},
+  {n:"Gabon", r:"Africa", d:[63.7,57.7,3.5,18.9,15400,16.6,62.9,4.08,8750]},
+  {n:"Gambia", r:"Africa", d:[80.3,23.8,5.69,42.7,1660,4.3,65.5,5.71,562]},
+  {n:"Georgia", r:"Asia", d:[16.5,35,10.1,52.8,6730,8.55,72.8,1.92,2960]},
+  {n:"Germany", r:"Europe", d:[4.2,42.3,11.6,37.1,40400,0.76,80.1,1.39,41800]},
+  {n:"Ghana", r:"Africa", d:[74.7,29.5,5.22,45.9,3060,16.6,62.2,4.27,1310]},
+  {n:"Greece", r:"Europe", d:[3.9,22.1,10.3,30.7,28700,0.67,80.4,1.48,26900]},
+  {n:"Grenada", r:"Americas", d:[14.6,23.8,5.86,49.2,11200,0.48,71.3,2.24,7370]},
+  {n:"Guatemala", r:"Americas", d:[35.4,25.8,6.85,36.3,6710,5.14,71.3,3.38,2830]},
+  {n:"Guinea", r:"Africa", d:[109,30.3,4.93,43.2,1190,16.1,58,5.34,648]},
+  {n:"Guinea-Bissau", r:"Africa", d:[114,14.9,8.5,35.2,1390,2.97,55.6,5.05,547]},
+  {n:"Guyana", r:"Americas", d:[37.6,51.4,5.38,79.1,5840,5.73,65.5,2.65,3040]},
+  {n:"Haiti", r:"Americas", d:[208,15.3,6.91,64.7,1500,5.45,32.1,3.33,662]},
+  {n:"Hungary", r:"Europe", d:[6,81.8,7.33,76.5,22300,2.33,74.5,1.25,13100]},
+  {n:"Iceland", r:"Europe", d:[2.6,53.4,9.4,43.3,38800,5.47,82,2.2,41900]},
+  {n:"India", r:"Asia", d:[58.8,22.6,4.05,27.1,4410,8.98,66.2,2.6,1350]},
+  {n:"Indonesia", r:"Asia", d:[33.3,24.3,2.61,22.4,8430,15.3,69.9,2.48,3110]},
+  {n:"Iran", r:"Asia", d:[19.3,24.4,5.6,19.4,17400,15.9,74.5,1.76,6530]},
+  {n:"Iraq", r:"Asia", d:[36.9,39.4,8.41,34.1,12700,16.6,67.2,4.56,4500]},
+  {n:"Ireland", r:"Europe", d:[4.2,103,9.19,86.5,45700,-3.22,80.4,2.05,48700]},
+  {n:"Israel", r:"Asia", d:[4.6,35,7.63,32.9,29600,1.77,81.4,3.03,30600]},
+  {n:"Italy", r:"Europe", d:[4,25.2,9.53,27.2,36200,0.32,81.7,1.46,35800]},
+  {n:"Jamaica", r:"Americas", d:[18.1,31.3,4.81,49.6,8000,9.81,74.7,2.17,4680]},
+  {n:"Japan", r:"Asia", d:[3.2,15,9.49,13.6,35800,-1.9,82.8,1.39,44500]},
+  {n:"Jordan", r:"Asia", d:[21.1,48.3,8.04,69,9470,8.43,75.8,3.66,3680]},
+  {n:"Kazakhstan", r:"Asia", d:[21.5,44.2,4.29,29.9,20100,19.5,68.4,2.6,9070]},
+  {n:"Kenya", r:"Africa", d:[62.2,20.7,4.75,33.6,2480,2.09,62.8,4.37,967]},
+  {n:"Kiribati", r:"Oceania", d:[62.7,13.3,11.3,79.9,1730,1.52,60.7,3.84,1490]},
+  {n:"Kuwait", r:"Asia", d:[10.8,66.7,2.63,30.4,75200,11.2,78.2,2.21,38500]},
+  {n:"Kyrgyz Republic", r:"Asia", d:[29.6,51.6,6.18,81.7,2790,10,68.5,3.1,880]},
+  {n:"Lao", r:"Asia", d:[78.9,35.4,4.47,49.3,3980,9.2,63.8,3.15,1140]},
+  {n:"Latvia", r:"Europe", d:[7.8,53.7,6.68,55.1,18300,-0.81,73.1,1.36,11300]},
+  {n:"Lebanon", r:"Asia", d:[10.3,35.8,7.03,60.2,16300,0.24,79.8,1.61,8860]},
+  {n:"Lesotho", r:"Africa", d:[99.7,39.4,11.1,101,2380,4.15,46.5,3.3,1170]},
+  {n:"Liberia", r:"Africa", d:[89.3,19.1,11.8,92.6,700,5.47,60.8,5.02,327]},
+  {n:"Libya", r:"Africa", d:[16.6,65.6,3.88,42.1,29600,14.2,76.1,2.41,12100]},
+  {n:"Lithuania", r:"Europe", d:[6.1,65.3,7.04,67.2,21100,2.38,73.2,1.5,12000]},
+  {n:"Luxembourg", r:"Europe", d:[2.8,175,7.77,142,91700,3.62,81.3,1.63,105000]},
+  {n:"Macedonia, FYR", r:"Europe", d:[10.4,39.8,7.09,58.1,11400,2.04,74,1.47,4540]},
+  {n:"Madagascar", r:"Africa", d:[62.2,25,3.77,43,1390,8.79,60.8,4.6,413]},
+  {n:"Malawi", r:"Africa", d:[90.5,22.8,6.59,34.9,1030,12.1,53.1,5.31,459]},
+  {n:"Malaysia", r:"Asia", d:[7.9,86.9,4.39,71,21100,7.27,74.5,2.15,9070]},
+  {n:"Maldives", r:"Asia", d:[13.2,77.6,6.33,65.4,10500,2.88,77.9,2.23,7100]},
+  {n:"Mali", r:"Africa", d:[137,22.8,4.98,35.1,1870,4.37,59.5,6.55,708]},
+  {n:"Malta", r:"Europe", d:[6.8,153,8.65,154,28300,3.83,80.3,1.36,21100]},
+  {n:"Mauritania", r:"Africa", d:[97.4,50.7,4.41,61.2,3320,18.9,68.2,4.98,1200]},
+  {n:"Mauritius", r:"Africa", d:[15,51.2,6,62.2,15900,1.13,73.4,1.57,8000]},
+  {n:"Micronesia, Fed. Sts.", r:"Oceania", d:[40,23.5,14.2,81,3340,3.8,65.4,3.46,2860]},
+  {n:"Moldova", r:"Europe", d:[17.2,39.2,11.7,78.5,3910,11.1,69.7,1.27,1630]},
+  {n:"Mongolia", r:"Asia", d:[26.1,46.7,5.44,56.7,7710,39.2,66.2,2.64,2650]},
+  {n:"Montenegro", r:"Europe", d:[6.8,37,9.11,62.7,14000,1.6,76.4,1.77,6680]},
+  {n:"Morocco", r:"Africa", d:[33.5,32.2,5.2,43,6440,0.98,73.5,2.58,2830]},
+  {n:"Mozambique", r:"Africa", d:[101,31.5,5.21,46.2,918,7.64,54.5,5.56,419]},
+  {n:"Myanmar", r:"Asia", d:[64.4,0.11,1.97,0.07,3720,7.04,66.8,2.41,988]},
+  {n:"Namibia", r:"Africa", d:[56,47.8,6.78,60.7,8460,3.56,58.6,3.6,5190]},
+  {n:"Nepal", r:"Asia", d:[47,9.58,5.25,36.4,1990,15.1,68.3,2.61,592]},
+  {n:"Netherlands", r:"Europe", d:[4.5,72,11.9,63.6,45500,0.85,80.7,1.79,50300]},
+  {n:"New Zealand", r:"Oceania", d:[6.2,30.3,10.1,28,32300,3.73,80.9,2.17,33700]},
+  {n:"Niger", r:"Africa", d:[123,22.2,5.16,49.1,814,2.55,58.8,7.49,348]},
+  {n:"Nigeria", r:"Africa", d:[130,25.3,5.07,17.4,5150,104,60.5,5.84,2330]},
+  {n:"Norway", r:"Europe", d:[3.2,39.7,9.48,28.5,62300,5.95,81,1.95,87800]},
+  {n:"Oman", r:"Asia", d:[11.7,65.7,2.77,41.2,45300,15.6,76.1,2.9,19300]},
+  {n:"Pakistan", r:"Asia", d:[92.1,13.5,2.2,19.4,4280,10.9,65.3,3.85,1040]},
+  {n:"Panama", r:"Americas", d:[19.7,70,8.1,78.2,15400,2.59,77.8,2.62,8080]},
+  {n:"Paraguay", r:"Americas", d:[24.1,55.1,5.87,51.5,7290,6.1,74.1,2.73,3230]},
+  {n:"Peru", r:"Americas", d:[20.3,27.8,5.08,23.8,9960,5.71,77.9,2.54,5020]},
+  {n:"Philippines", r:"Asia", d:[31.9,34.8,3.61,36.6,5600,4.22,69,3.16,2130]},
+  {n:"Poland", r:"Europe", d:[6,40.1,7.46,42.1,21800,1.66,76.3,1.41,12600]},
+  {n:"Portugal", r:"Europe", d:[3.9,29.9,11,37.4,27200,0.64,79.8,1.39,22500]},
+  {n:"Qatar", r:"Asia", d:[9,62.3,1.81,23.8,125000,6.98,79.5,2.07,70300]},
+  {n:"Romania", r:"Europe", d:[11.5,32.6,5.58,38.8,17800,3.53,73.7,1.59,8230]},
+  {n:"Russia", r:"Europe", d:[10,29.2,5.08,21.1,23100,14.2,69.2,1.57,10700]},
+  {n:"Rwanda", r:"Africa", d:[63.6,12,10.5,30,1350,2.61,64.6,4.51,563]},
+  {n:"Samoa", r:"Oceania", d:[18.9,29.2,6.47,53.1,5400,1.72,71.5,4.34,3450]},
+  {n:"Saudi Arabia", r:"Asia", d:[15.7,49.6,4.29,33,45400,17.2,75.1,2.96,19300]},
+  {n:"Senegal", r:"Africa", d:[66.8,24.9,5.66,40.3,2180,1.85,64,5.06,1000]},
+  {n:"Serbia", r:"Europe", d:[7.6,32.9,10.4,47.9,12700,5.88,74.7,1.4,5410]},
+  {n:"Seychelles", r:"Africa", d:[14.4,93.8,3.4,108,20400,-4.21,73.4,2.17,10800]},
+  {n:"Sierra Leone", r:"Africa", d:[160,16.8,13.1,34.5,1220,17.2,55,5.2,399]},
+  {n:"Singapore", r:"Asia", d:[2.8,200,3.96,174,72100,-0.05,82.7,1.15,46600]},
+  {n:"Slovak Republic", r:"Europe", d:[7,76.3,8.79,77.8,25200,0.48,75.5,1.43,16600]},
+  {n:"Slovenia", r:"Europe", d:[3.2,64.3,9.41,62.9,28700,-0.99,79.5,1.57,23400]},
+  {n:"Solomon Islands", r:"Oceania", d:[28.1,49.3,8.55,81.2,1780,6.81,61.7,4.24,1290]},
+  {n:"South Africa", r:"Africa", d:[53.7,28.6,8.94,27.4,12000,6.35,54.3,2.59,7280]},
+  {n:"South Korea", r:"Asia", d:[4.1,49.4,6.93,46.2,30400,3.16,80.1,1.23,22100]},
+  {n:"Spain", r:"Europe", d:[3.8,25.5,9.54,26.8,32500,0.16,81.9,1.37,30700]},
+  {n:"Sri Lanka", r:"Asia", d:[11.2,19.6,2.94,26.8,8560,22.8,74.4,2.2,2810]},
+  {n:"St. Vincent and the Grenadines", r:"Americas", d:[20.7,26.9,4.47,57.1,9920,4.44,71.6,2.07,6230]},
+  {n:"Sudan", r:"Africa", d:[76.7,19.7,6.32,17.2,3370,19.6,66.3,4.88,1480]},
+  {n:"Suriname", r:"Americas", d:[24.1,52.5,7.01,38.4,14200,7.2,70.3,2.52,8300]},
+  {n:"Sweden", r:"Europe", d:[3,46.2,9.63,40.7,42900,0.99,81.5,1.98,52100]},
+  {n:"Switzerland", r:"Europe", d:[4.5,64,11.5,53.3,55500,0.32,82.2,1.52,74600]},
+  {n:"Tajikistan", r:"Asia", d:[52.4,14.9,5.98,58.6,2110,12.5,69.6,3.51,738]},
+  {n:"Tanzania", r:"Africa", d:[71.9,18.7,6.01,29.1,2090,9.25,59.3,5.43,702]},
+  {n:"Thailand", r:"Asia", d:[14.9,66.5,3.88,60.8,13500,4.08,76.6,1.55,5080]},
+  {n:"Timor-Leste", r:"Asia", d:[62.6,2.2,9.12,27.8,1850,26.5,71.1,6.23,3600]},
+  {n:"Togo", r:"Africa", d:[90.3,40.2,7.65,57.3,1210,1.18,58.7,4.87,488]},
+  {n:"Tonga", r:"Oceania", d:[17.4,12.4,5.07,60.3,4980,3.68,69.9,3.91,3550]},
+  {n:"Tunisia", r:"Africa", d:[17.4,50.5,6.21,55.3,10400,3.82,76.9,2.14,4140]},
+  {n:"Turkey", r:"Asia", d:[19.1,20.4,6.74,25.5,18000,7.01,78.2,2.15,10700]},
+  {n:"Turkmenistan", r:"Asia", d:[62,76.3,2.5,44.5,9940,2.31,67.9,2.83,4440]},
+  {n:"Uganda", r:"Africa", d:[81,17.1,9.01,28.6,1540,10.6,56.8,6.15,595]},
+  {n:"Ukraine", r:"Europe", d:[11.7,47.1,7.72,51.1,7820,13.4,70.4,1.44,2970]},
+  {n:"United Arab Emirates", r:"Asia", d:[8.6,77.7,3.66,63.6,57600,12.5,76.5,1.87,35000]},
+  {n:"United Kingdom", r:"Europe", d:[5.2,28.2,9.64,30.8,36200,1.57,80.3,1.92,38900]},
+  {n:"United States", r:"Americas", d:[7.3,12.4,17.9,15.8,49400,1.22,78.7,1.93,48400]},
+  {n:"Uruguay", r:"Americas", d:[10.6,26.3,8.35,25.4,17100,4.91,76.4,2.08,11900]},
+  {n:"Uzbekistan", r:"Asia", d:[36.3,31.7,5.81,28.5,4240,16.5,68.8,2.34,1380]},
+  {n:"Vanuatu", r:"Oceania", d:[29.2,46.6,5.25,52.7,2950,2.62,63,3.5,2970]},
+  {n:"Venezuela", r:"Americas", d:[17.1,28.5,4.91,17.6,16500,45.9,75.4,2.47,13500]},
+  {n:"Vietnam", r:"Asia", d:[23.3,72,6.84,80.2,4490,12.1,73.1,1.95,1310]},
+  {n:"Yemen", r:"Asia", d:[56.3,30,5.18,34.4,4480,23.6,67.5,4.67,1310]},
+  {n:"Zambia", r:"Africa", d:[83.1,37,5.89,30.9,3280,14,52,5.4,1460]},
+];
+
+/* ============================================================
+   PCA FROM SCRATCH — plain JavaScript, no math library
+   ============================================================ */
+function computePCA(rows) {
+  const n = rows.length, p = rows[0].length;
+  // means and sample standard deviations (ddof = 1)
+  const mean = new Array(p).fill(0), sd = new Array(p).fill(0);
+  for (const r of rows) for (let j = 0; j < p; j++) mean[j] += r[j];
+  for (let j = 0; j < p; j++) mean[j] /= n;
+  for (const r of rows) for (let j = 0; j < p; j++) sd[j] += (r[j] - mean[j]) ** 2;
+  for (let j = 0; j < p; j++) sd[j] = Math.sqrt(sd[j] / (n - 1));
+  // standardised matrix
+  const Z = rows.map(r => r.map((v, j) => (v - mean[j]) / sd[j]));
+  // sample SDs of the standardised columns (should all be 1)
+  const sdStd = new Array(p).fill(0);
+  for (const r of Z) for (let j = 0; j < p; j++) sdStd[j] += r[j] * r[j];
+  for (let j = 0; j < p; j++) sdStd[j] = Math.sqrt(sdStd[j] / (n - 1));
+  // correlation matrix R = Z'Z / (n-1)
+  const R = Array.from({length: p}, () => new Array(p).fill(0));
+  for (const r of Z) for (let i = 0; i < p; i++) for (let j = 0; j < p; j++) R[i][j] += r[i] * r[j];
+  for (let i = 0; i < p; i++) for (let j = 0; j < p; j++) R[i][j] /= (n - 1);
+  // eigendecomposition by cyclic Jacobi rotations
+  const { values, vectors, sweeps, rotations } = jacobiEigen(R, 1e-12);
+  // sort descending
+  const order = values.map((v, i) => i).sort((a, b) => values[b] - values[a]);
+  const lambda = order.map(i => values[i]);
+  // V[i][k] = loading of variable i on PC k; fix sign so the largest |loading| is positive
+  const V = Array.from({length: p}, () => new Array(p).fill(0));
+  order.forEach((src, k) => {
+    let imax = 0;
+    for (let i = 1; i < p; i++) if (Math.abs(vectors[i][src]) > Math.abs(vectors[imax][src])) imax = i;
+    const s = vectors[imax][src] < 0 ? -1 : 1;
+    for (let i = 0; i < p; i++) V[i][k] = s * vectors[i][src];
+  });
+  const total = lambda.reduce((a, b) => a + b, 0);
+  const ratio = lambda.map(l => l / total);
+  const cum = []; ratio.reduce((a, v) => { cum.push(a + v); return a + v; }, 0);
+  // scores Z·V
+  const scores = Z.map(r => V[0].map((_, k) => r.reduce((s, v, i) => s + v * V[i][k], 0)));
+  // verification: max |V'V - I|, max |R V - V Λ|
+  let orthoErr = 0, reconErr = 0;
+  for (let a = 0; a < p; a++) for (let b = 0; b < p; b++) {
+    let dot = 0; for (let i = 0; i < p; i++) dot += V[i][a] * V[i][b];
+    orthoErr = Math.max(orthoErr, Math.abs(dot - (a === b ? 1 : 0)));
+  }
+  for (let i = 0; i < p; i++) for (let k = 0; k < p; k++) {
+    let rv = 0; for (let j = 0; j < p; j++) rv += R[i][j] * V[j][k];
+    reconErr = Math.max(reconErr, Math.abs(rv - lambda[k] * V[i][k]));
+  }
+  return { n, p, mean, sd, sdStd, Z, R, lambda, V, ratio, cum, scores, total, sweeps, rotations, orthoErr, reconErr };
+}
+
+// Cyclic Jacobi: A symmetric. Returns eigenvalues (diag of rotated A) and eigenvector matrix (columns).
+function jacobiEigen(Ain, tol) {
+  const p = Ain.length;
+  const A = Ain.map(r => r.slice());
+  const Vm = Array.from({length: p}, (_, i) => Array.from({length: p}, (_, j) => i === j ? 1 : 0));
+  let sweeps = 0, rotations = 0;
+  const offNorm = () => { let s = 0; for (let i = 0; i < p; i++) for (let j = 0; j < p; j++) if (i !== j) s += A[i][j] ** 2; return Math.sqrt(s); };
+  while (offNorm() > tol && sweeps < 100) {
+    sweeps++;
+    for (let q = 0; q < p - 1; q++) for (let r = q + 1; r < p; r++) {
+      if (Math.abs(A[q][r]) < 1e-300) continue;
+      // rotation angle that zeroes A[q][r]
+      const theta = (A[r][r] - A[q][q]) / (2 * A[q][r]);
+      const t = Math.sign(theta || 1) / (Math.abs(theta) + Math.sqrt(theta * theta + 1));
+      const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+      // A <- J' A J
+      for (let k = 0; k < p; k++) { const akq = A[k][q], akr = A[k][r]; A[k][q] = c * akq - s * akr; A[k][r] = s * akq + c * akr; }
+      for (let k = 0; k < p; k++) { const aqk = A[q][k], ark = A[r][k]; A[q][k] = c * aqk - s * ark; A[r][k] = s * aqk + c * ark; }
+      // V <- V J
+      for (let k = 0; k < p; k++) { const vkq = Vm[k][q], vkr = Vm[k][r]; Vm[k][q] = c * vkq - s * vkr; Vm[k][r] = s * vkq + c * vkr; }
+      rotations++;
+    }
+  }
+  return { values: A.map((r, i) => r[i]), vectors: Vm, sweeps, rotations };
+}
+
+const PCA = computePCA(COUNTRIES.map(c => c.d));
+const PC1 = PCA.scores.map(s => s[0]);
+const PC2 = PCA.scores.map(s => s[1]);
+const PC3 = PCA.scores.map(s => s[2]);
+const PCT = PCA.ratio.map(v => v * 100);
+const CUM = PCA.cum.map(v => v * 100);
+const VI = {}; VARS.forEach((v, i) => VI[v] = i);
+const fmtL = (v) => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(3);
+
+/* ==== fill every live number in the static text ==== */
+(function fillLive() {
+  const missing = COUNTRIES.reduce((m, c) => m + c.d.filter(v => !Number.isFinite(v)).length, 0);
+  const F = {
+    n: PCA.n, p: PCA.p, missing,
+    traceR: PCA.R.reduce((s, r, i) => s + r[i], 0).toFixed(3),
+    lam1_2: PCA.lambda[0].toFixed(2), lam1_3: PCA.lambda[0].toFixed(3), lam2_3: PCA.lambda[1].toFixed(3),
+    pct1: PCT[0].toFixed(1), pct2: PCT[1].toFixed(1), pct3: PCT[2].toFixed(1),
+    cum2pct: CUM[1].toFixed(2), cum3pct: CUM[2].toFixed(1),
+  };
+  document.querySelectorAll('.L').forEach(el => { el.textContent = F[el.dataset.f]; });
+
+  document.getElementById('var_table').innerHTML = VARS.map((v, i) =>
+    `<tr><td>${v}</td><td>${VAR_META[v][0]}</td><td>${VAR_META[v][1]}</td><td>${PCA.mean[i].toLocaleString(undefined,{maximumFractionDigits:2})}</td><td>${PCA.sd[i].toLocaleString(undefined,{maximumFractionDigits:2})}</td></tr>`).join('');
+
+  // strongest correlations, found from R
+  const pairs = [];
+  for (let i = 0; i < PCA.p; i++) for (let j = i + 1; j < PCA.p; j++) pairs.push([VARS[i], VARS[j], PCA.R[i][j]]);
+  pairs.sort((a, b) => Math.abs(b[2]) - Math.abs(a[2]));
+  document.getElementById('corr_insights').innerHTML = pairs.slice(0, 4).map(([a, b, r]) =>
+    `<div class="insight"><div class="insight-val" style="color:${r > 0 ? 'var(--accent3)' : 'var(--red)'}">${r > 0 ? '+' : '−'}${Math.abs(r).toFixed(2)}</div><div class="insight-label">${a} vs ${b}</div></div>`).join('');
+
+  // Kaiser note
+  const nKaiser = PCA.lambda.filter(l => l > 1).length;
+  const border = PCA.lambda.map((l, i) => [l, i]).filter(([l]) => Math.abs(l - 1) < 0.05);
+  document.getElementById('kaiser_note').innerHTML =
+    `Kaiser criterion (λ &gt; 1): retain PC1–PC${nKaiser}` +
+    (border.length ? ` (λ<sub>${border[0][1] + 1}</sub> = ${border[0][0].toFixed(3)} is borderline)` : '') +
+    `. Parallel analysis or cross-validation recommended for rigorous selection.`;
+
+  // verification line
+  document.getElementById('live_check').innerHTML =
+    `<span>Σλ = <b>${PCA.total.toFixed(6)}</b></span>` +
+    `<span>max |VᵀV − I| = <b>${PCA.orthoErr.toExponential(2)}</b></span>` +
+    `<span>max |RV − VΛ| = <b>${PCA.reconErr.toExponential(2)}</b></span>` +
+    `<span>Jacobi: <b>${PCA.sweeps}</b> sweeps, <b>${PCA.rotations}</b> rotations</span>`;
+
+  // PC descriptions from the loadings
+  const top = (k, sign, m) => VARS.map((v, i) => [v, PCA.V[i][k]]).filter(([, l]) => sign > 0 ? l > 0 : l < 0)
+    .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, m).map(([v, l]) => `${v} (${fmtL(l)})`).join(', ');
+  document.getElementById('pc_annotation').innerHTML =
+    `PC1 = Development axis (${PCT[0].toFixed(1)}%): largest positive loadings on ${top(0, 1, 3)}; largest negative loadings on ${top(0, -1, 2)}.<br>` +
+    `PC2 = Trade-openness axis (${PCT[1].toFixed(1)}%): largest positive loadings on ${top(1, 1, 2)}; orthogonal to PC1 (v₁ᵀv₂ = 0 by construction).<br>` +
+    `<span style="color:var(--accent);font-family:var(--font-mono);font-size:11px;">Sign convention: eigenvector signs are arbitrary up to ±1 per component. Direction labels reflect the chosen sign convention.</span>`;
+  const l3 = VARS.map((v, i) => [v, PCA.V[i][2]]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  document.getElementById('pc3_sub').textContent =
+    `Adding PC3 (${PCT[2].toFixed(1)}%) brings cumulative variance to ${CUM[2].toFixed(1)}%. PC3 is dominated by ${l3[0][0]} (${fmtL(l3[0][1])}) vs ${l3[1][0]} (${fmtL(l3[1][1])}).`;
+  document.getElementById('pc3_label').textContent = `PC3 — ${l3[0][0]} vs ${l3[1][0]}`;
+
+  const sel = document.getElementById('loading_pc');
+  [...sel.options].forEach((o, k) => o.textContent = `PC${k + 1} — ${PCT[k].toFixed(1)}%`);
+})();
+
+// ---- PLOT DEFAULTS ----
+const PLOTBG = '#13151a';
+const PAPERB = '#13151a';
+const GRID   = 'rgba(255,255,255,0.05)';
+const TXTCOL = '#7a7870';
+const LAYOUT_BASE = {
+  paper_bgcolor: PAPERB,
+  plot_bgcolor:  PLOTBG,
+  font: {family:'DM Mono, monospace', color:TXTCOL, size:11},
+  margin:{t:30,r:20,b:50,l:60},
+  xaxis:{gridcolor:GRID, zerolinecolor:'rgba(255,255,255,0.1)'},
+  yaxis:{gridcolor:GRID, zerolinecolor:'rgba(255,255,255,0.1)'},
+  colorway:['#c8a96e','#6e9ec8','#9ec87a','#c87a7a','#c8b0e8','#e8c87a'],
+};
+const CFG = {responsive:true, displayModeBar:false};
+
+// ---- SECTION SWITCHING ----
+function show(id, btn) {
+  document.querySelectorAll('section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  btn.classList.add('active');
+  RENDERS[id] && RENDERS[id]();
+}
+const RENDERS = {};
+
+/* ==== S1: RAW DATA ==== */
+let showLabels = true;
+function toggleLabels() {
+  showLabels = !showLabels;
+  document.getElementById('btn_labels').textContent = 'labels ' + (showLabels ? 'ON' : 'OFF');
+  document.getElementById('btn_labels').classList.toggle('on', showLabels);
+  renderRaw();
+}
+function renderRaw() {
+  const xv = document.getElementById('raw_x').value;
+  const yv = document.getElementById('raw_y').value;
+  const xi = VI[xv], yi = VI[yv];
+  const xs = COUNTRIES.map(c => c.d[xi]);
+  const ys = COUNTRIES.map(c => c.d[yi]);
+  const names = COUNTRIES.map(c => c.n);
+  const r = PCA.R[xi][yi];
+  const trace = {
+    x: xs, y: ys, mode: showLabels ? 'markers+text' : 'markers',
+    type: 'scatter', text: names, textposition:'top center',
+    textfont:{size:8, color:'rgba(200,169,110,0.7)'},
+    marker:{size:6, color:'#c8a96e', opacity:0.7, line:{width:0.5, color:'rgba(255,255,255,0.1)'}},
+    hovertemplate:'<b>%{text}</b><br>'+xv+': %{x:.2f}<br>'+yv+': %{y:.2f}<extra></extra>'
+  };
+  const layout = {...LAYOUT_BASE,
+    xaxis:{...LAYOUT_BASE.xaxis, title:{text:xv, font:{color:TXTCOL}}},
+    yaxis:{...LAYOUT_BASE.yaxis, title:{text:yv, font:{color:TXTCOL}}},
+    annotations:[{xref:'paper',yref:'paper',x:0.98,y:0.98,
+      text:'Pearson r = '+(r>0?'+':'')+r.toFixed(3),
+      showarrow:false,font:{color:r>0?'#9ec87a':'#c87a7a',size:13,family:'DM Mono'},
+      xanchor:'right',yanchor:'top'}],
+    height:480
+  };
+  Plotly.react('plot_raw', [trace], layout, CFG);
+  const xr = Math.max(...xs) - Math.min(...xs), yr = Math.max(...ys) - Math.min(...ys);
+  const msg = xv === yv ? `Same variable on both axes: r = 1 by definition.` :
+    `Pearson r = ${(r>0?'+':'')}${r.toFixed(3)} between ${xv} and ${yv}. ` +
+    `Ranges: ${xv} spans ${xr.toLocaleString(undefined,{maximumFractionDigits:1})} ${VAR_META[xv][1]}, ${yv} spans ${yr.toLocaleString(undefined,{maximumFractionDigits:1})} ${VAR_META[yv][1]}` +
+    (Math.max(xr, yr) / Math.min(xr, yr) > 20 ? ' — a scale gap this large is why standardization is essential before PCA.' : '.');
+  document.getElementById('raw_annotation').textContent = msg;
+}
+RENDERS['s1'] = renderRaw;
+document.getElementById('raw_x').onchange = renderRaw;
+document.getElementById('raw_y').onchange = renderRaw;
+
+/* ==== S2: STANDARDIZATION ==== */
+RENDERS['s2'] = function() {
+  const rawSdArr = PCA.sd;
+  const colors = rawSdArr.map(v => v > 1000 ? '#c87a7a' : v > 10 ? '#c8a96e' : '#9ec87a');
+  Plotly.react('plot_before_std',[{
+    x: VARS, y: rawSdArr, type:'bar',
+    marker:{color:colors, line:{width:0}},
+    hovertemplate:'%{x}<br>σ̂ = %{y:,.2f}<extra></extra>'
+  }],{...LAYOUT_BASE,
+    height:220, margin:{t:10,r:10,b:60,l:70},
+    yaxis:{...LAYOUT_BASE.yaxis, title:{text:'σ̂ (raw)',font:{color:TXTCOL}}, type:'log'},
+    xaxis:{...LAYOUT_BASE.xaxis, tickangle:-40},
+    showlegend:false
+  },CFG);
+  Plotly.react('plot_after_std',[{
+    x: VARS, y: PCA.sdStd, type:'bar',
+    marker:{color:'#c8a96e', opacity:0.7, line:{width:0}},
+    hovertemplate:'%{x}<br>σ̂ = %{y:.6f}<extra></extra>'
+  }],{...LAYOUT_BASE,
+    height:220, margin:{t:10,r:10,b:60,l:50},
+    yaxis:{...LAYOUT_BASE.yaxis, title:{text:'σ̂ (standardized)',font:{color:TXTCOL}}, range:[0,1.5]},
+    xaxis:{...LAYOUT_BASE.xaxis, tickangle:-40},
+    showlegend:false
+  },CFG);
+  const tb = document.getElementById('scale_table');
+  const max_sd = Math.max(...rawSdArr);
+  tb.innerHTML = VARS.map((v,i) => {
+    const pct = (rawSdArr[i]/max_sd*100).toFixed(1);
+    const cls = rawSdArr[i]>1000?'red':rawSdArr[i]>10?'':'green';
+    return `<tr><td>${v}</td><td style="font-family:var(--font-mono)">${rawSdArr[i].toLocaleString(undefined,{maximumFractionDigits:2})}</td>
+    <td><div class="bar-cell"><div class="bar-fill ${cls}" style="width:${pct}%;max-width:200px;"></div><span style="font-size:11px;color:var(--muted)">${pct}%</span></div></td></tr>`;
+  }).join('');
+};
+
+/* ==== S3: CORRELATION MATRIX ==== */
+RENDERS['s3'] = function() {
+  const text = PCA.R.map(row => row.map(v => v.toFixed(2)));
+  const hm = {
+    z: PCA.R, x: VARS, y: VARS,
+    type:'heatmap', colorscale:[
+      [0,'#7a1a1a'],[0.25,'#3a1a1a'],[0.5,'#1a1a1a'],
+      [0.75,'#1a2e1a'],[1,'#1a5a1a']
+    ],
+    text, texttemplate:'%{text}', textfont:{size:10},
+    hovertemplate:'%{y} vs %{x}<br>r = %{z:.4f}<extra></extra>',
+    zmin:-1, zmax:1,
+    colorbar:{tickfont:{color:TXTCOL,size:10}, thickness:12, bgcolor:PLOTBG, bordercolor:'transparent'}
+  };
+  Plotly.react('plot_corr',[hm],{...LAYOUT_BASE,
+    height:480, margin:{t:20,r:120,b:100,l:90},
+    xaxis:{...LAYOUT_BASE.xaxis, tickangle:-40},
+  },CFG);
+};
+
+/* ==== S4: EIGENSPECTRUM ==== */
+RENDERS['s4'] = function() {
+  const ks = PCA.lambda.map((_,i) => 'PC'+(i+1));
+  const tb = document.getElementById('eigen_table');
+  tb.innerHTML = PCA.lambda.map((v,i) => {
+    const pv = PCT[i].toFixed(2), cv = CUM[i].toFixed(2);
+    const kept = i < 2 ? 'style="color:var(--accent)"' : i < 4 ? 'style="color:rgba(200,169,110,0.5)"' : '';
+    return `<tr ${kept}><td>k = ${i+1}</td><td>${v.toFixed(4)}</td><td>${pv}%</td>
+    <td><div class="bar-cell"><div class="bar-fill ${i<2?'':'blue'}" style="width:${cv}%;max-width:150px;"></div><span style="font-size:10px;color:var(--muted)">${cv}%</span></div></td></tr>`;
+  }).join('');
+
+  const bars = {x:ks, y:PCT, type:'bar', name:'% of variance (λₖ / 9)',
+    marker:{color:PCA.lambda.map((_,i)=>i<2?'#c8a96e':i<4?'rgba(200,169,110,0.45)':'rgba(200,169,110,0.15)'),line:{width:0}},
+    hovertemplate:'<b>%{x}</b><br>λ = %{customdata:.4f}<br>%{y:.2f}% of variance<extra></extra>',
+    customdata: PCA.lambda};
+  const line_cum = {x:ks, y:CUM, type:'scatter', mode:'lines+markers', name:'Cumulative %',
+    line:{color:'#6e9ec8',width:2}, marker:{size:8,color:'#6e9ec8'},
+    hovertemplate:'<b>%{x}</b><br>Cumulative: %{y:.2f}%<extra></extra>'};
+  const kaiser = {x:ks, y:VARS.map(()=>100/PCA.p), type:'scatter', mode:'lines', name:'Kaiser λ=1 (= 1/p)',
+    line:{color:'rgba(200,169,110,0.4)',width:1,dash:'dash'}, hoverinfo:'skip'};
+  Plotly.react('plot_scree',[bars,kaiser,line_cum],{...LAYOUT_BASE,
+    height:380, margin:{t:30,r:20,b:50,l:60},
+    yaxis:{...LAYOUT_BASE.yaxis, title:{text:'% of total variance',font:{color:TXTCOL}}, range:[0,105]},
+    legend:{font:{color:TXTCOL,size:10},bgcolor:'transparent',x:0.45,y:0.6},
+    annotations: PCA.lambda.slice(0,5).map((v,i) => ({
+      x:'PC'+(i+1), y:PCT[i]+3, text:'λ='+v.toFixed(3), showarrow:false,
+      font:{size:9,color:'#c8a96e'}, xanchor:'center'
+    }))
+  },CFG);
+  updateThresh();
+};
+
+function updateThresh() {
+  const t = parseInt(document.getElementById('thresh_slider').value);
+  document.getElementById('thresh_val').textContent = t;
+  const k = CUM.findIndex(v => v >= t) + 1;
+  document.getElementById('thresh_result').innerHTML =
+    `To retain ≥ ${t}% of variance:<br><span style="font-size:1.4rem;color:var(--accent)">${k}</span> principal component${k>1?'s':''} needed<br><span style="color:var(--muted);font-size:11px">(captures ${CUM[k-1].toFixed(2)}%)</span>`;
+}
+
+/* ==== S5: PCA 2D ==== */
+let colorMode = 'region';
+let showCountryLabels = window.innerWidth > 600;  // labels crowd a phone-width plot
+(function(){ const b=document.getElementById('btn_country_labels'); if(b){ b.textContent='country labels '+(showCountryLabels?'ON':'OFF'); b.classList.toggle('on', showCountryLabels);} })();
+function toggleCountryLabels() {
+  showCountryLabels = !showCountryLabels;
+  document.getElementById('btn_country_labels').textContent = 'country labels ' + (showCountryLabels?'ON':'OFF');
+  document.getElementById('btn_country_labels').classList.toggle('on', showCountryLabels);
+  renderPCA2D();
+}
+function setColorMode(m) {
+  colorMode = m;
+  document.getElementById('btn_color_gdp').classList.toggle('on', m==='gdp');
+  document.getElementById('btn_color_region').classList.toggle('on', m==='region');
+  renderPCA2D();
+}
+const REGION_COLORS = {
+  'Africa':'#c87a7a','Asia':'#c8a96e','Europe':'#6e9ec8',
+  'Americas':'#9ec87a','Oceania':'#c8b0e8'
+};
+const REGION_GROUPS = ['Africa','Asia','Europe','Americas','Oceania'];
+
+function renderPCA2D() {
+  const names = COUNTRIES.map(c => c.n);
+  const regions = COUNTRIES.map(c => c.r);
+  const gdpScores = COUNTRIES.map(c => c.d[VI['gdpp']]);
+  if(colorMode === 'region') {
+    const traces = REGION_GROUPS.map(r => ({
+      x: PC1.filter((_,i)=>regions[i]===r),
+      y: PC2.filter((_,i)=>regions[i]===r),
+      mode: showCountryLabels ? 'markers+text' : 'markers',
+      type:'scatter', name:r,
+      text: names.filter((_,i)=>regions[i]===r),
+      textposition:'top center',
+      textfont:{size:7, color:REGION_COLORS[r]+'aa'},
+      marker:{size:7, color:REGION_COLORS[r], opacity:0.8, line:{width:0.5,color:'rgba(255,255,255,0.15)'}},
+      hovertemplate:'<b>%{text}</b><br>PC1: %{x:.3f}<br>PC2: %{y:.3f}<extra></extra>',
+    }));
+    Plotly.react('plot_pca2d', traces, getPCA2DLayout(), CFG);
+  } else {
+    Plotly.react('plot_pca2d', [{
+      x:PC1, y:PC2, mode:showCountryLabels?'markers+text':'markers', type:'scatter',
+      text:names, textposition:'top center',
+      textfont:{size:7, color:'rgba(200,169,110,0.6)'},
+      marker:{size:7, color:gdpScores, colorscale:[
+        [0,'#4a1b0c'],[0.3,'#c87a7a'],[0.6,'#c8a96e'],[1,'#9ec87a']
+      ], showscale:true, opacity:0.85,
+      colorbar:{title:{text:'gdpp (USD)',font:{color:TXTCOL}}, tickfont:{color:TXTCOL,size:9}, thickness:10, bgcolor:PLOTBG, bordercolor:'transparent'},
+      line:{width:0.5,color:'rgba(255,255,255,0.1)'}},
+      hovertemplate:'<b>%{text}</b><br>PC1: %{x:.3f}<br>PC2: %{y:.3f}<extra></extra>'
+    }], getPCA2DLayout(), CFG);
+  }
+}
+function getPCA2DLayout() {
+  return {...LAYOUT_BASE, height:520,
+    xaxis:{...LAYOUT_BASE.xaxis, title:{text: window.innerWidth > 600 ? `PC1 — Development axis (${PCT[0].toFixed(1)}% of variance)` : `PC1 (${PCT[0].toFixed(1)}%)`,font:{color:TXTCOL}},
+           zeroline:true, zerolinecolor:'rgba(255,255,255,0.12)', zerolinewidth:1},
+    yaxis:{...LAYOUT_BASE.yaxis, title:{text: window.innerWidth > 600 ? `PC2 — Trade-openness (${PCT[1].toFixed(1)}% of variance)` : `PC2 (${PCT[1].toFixed(1)}%)`,font:{color:TXTCOL}},
+           zeroline:true, zerolinecolor:'rgba(255,255,255,0.12)', zerolinewidth:1},
+    legend:{font:{color:TXTCOL,size:10},bgcolor:'rgba(19,21,26,0.8)',bordercolor:'rgba(255,255,255,0.1)',borderwidth:1}
+  };
+}
+RENDERS['s5'] = renderPCA2D;
+
+/* ==== S6: 3D PCA ==== */
+RENDERS['s6'] = function() {
+  const names = COUNTRIES.map(c => c.n);
+  const regions = COUNTRIES.map(c => c.r);
+  const traces = REGION_GROUPS.map(r => ({
+    x: PC1.filter((_,i)=>regions[i]===r),
+    y: PC2.filter((_,i)=>regions[i]===r),
+    z: PC3.filter((_,i)=>regions[i]===r),
+    mode:'markers', type:'scatter3d', name:r,
+    text: names.filter((_,i)=>regions[i]===r),
+    marker:{size:4, color:REGION_COLORS[r], opacity:0.8, line:{width:0.3,color:'rgba(255,255,255,0.1)'}},
+    hovertemplate:'<b>%{text}</b><br>PC1: %{x:.3f}<br>PC2: %{y:.3f}<br>PC3: %{z:.3f}<extra></extra>'
+  }));
+  Plotly.react('plot_pca3d', traces, {
+    paper_bgcolor:PAPERB, plot_bgcolor:PLOTBG,
+    font:{family:'DM Mono',color:TXTCOL,size:10},
+    scene:{
+      xaxis:{title:`PC1 (${PCT[0].toFixed(1)}%)`,gridcolor:GRID,backgroundcolor:PLOTBG,color:TXTCOL},
+      yaxis:{title:`PC2 (${PCT[1].toFixed(1)}%)`,gridcolor:GRID,backgroundcolor:PLOTBG,color:TXTCOL},
+      zaxis:{title:`PC3 (${PCT[2].toFixed(1)}%)`,gridcolor:GRID,backgroundcolor:PLOTBG,color:TXTCOL},
+      bgcolor:PLOTBG, camera:{eye:{x:1.5,y:1.5,z:0.8}}
+    },
+    height:520, margin:{t:20,r:20,b:20,l:20},
+    legend:{font:{color:TXTCOL,size:10},bgcolor:'rgba(19,21,26,0.8)'}
+  }, CFG);
+};
+
+/* ==== S7: LOADINGS ==== */
+function renderLoadings() {
+  const pc = parseInt(document.getElementById('loading_pc').value);
+  const vals = VARS.map((_,i) => PCA.V[i][pc]);
+  const colors = vals.map(v => v > 0 ? '#9ec87a' : '#c87a7a');
+  Plotly.react('plot_loadings',[{
+    x:vals, y:VARS, type:'bar', orientation:'h',
+    marker:{color:colors, line:{width:0}},
+    hovertemplate:'%{y}<br>vᵢₖ = %{x:.5f}<extra></extra>'
+  }],{...LAYOUT_BASE,
+    height:340, margin:{t:20,r:20,b:40,l:90},
+    xaxis:{...LAYOUT_BASE.xaxis, title:{text:'Loading coefficient vᵢₖ',font:{color:TXTCOL}},
+           zeroline:true, zerolinecolor:'rgba(255,255,255,0.2)', range:[-0.8,0.8]},
+    yaxis:{...LAYOUT_BASE.yaxis},
+    annotations:[{xref:'paper',yref:'paper',x:0.99,y:0.99,
+      text:'PC'+(pc+1)+' — '+PCT[pc].toFixed(1)+'% var · ‖v‖=1',
+      showarrow:false,font:{color:'#c8a96e',size:11},xanchor:'right',yanchor:'top'}]
+  },CFG);
+  const rowsFor = k => VARS.map((v,i) => [v,PCA.V[i][k]]).sort((a,b) => Math.abs(b[1])-Math.abs(a[1])).map(([v,l]) => {
+    const c = l>0?'#9ec87a':'#c87a7a';
+    return `<tr><td>${v}</td><td style="color:${c};font-family:var(--font-mono)">${l>0?'+':''}${l.toFixed(5)}</td><td style="color:${c}">${l>0?'↗ positive':'↙ negative'}</td></tr>`;
+  }).join('');
+  document.getElementById('load1_table').innerHTML = rowsFor(0);
+  document.getElementById('load2_table').innerHTML = rowsFor(1);
+}
+RENDERS['s7'] = renderLoadings;
+
+// Initial render
+renderRaw();
+</script>
+</body>
+</html>
